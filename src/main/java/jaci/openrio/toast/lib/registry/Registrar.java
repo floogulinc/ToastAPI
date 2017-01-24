@@ -1,5 +1,6 @@
 package jaci.openrio.toast.lib.registry;
 
+import com.ctre.CANTalon;
 import edu.wpi.first.wpilibj.*;
 
 import java.util.HashMap;
@@ -32,6 +33,15 @@ public class Registrar<ID, Type> {
      */
     public synchronized  <T extends Type> T fetch(ID id, Class<T> clazz, Supplier<T> creator) {
         Type in_register = registered.get(id);
+
+        if(in_register == null) {
+            for (ID key : registered.keySet()) {
+                if (key.equals(id)) {
+                    in_register = registered.get(key);
+                }
+            }
+        }
+
         if (in_register == null) {
             T instance = creator.get();
             registered.put(id, instance);
@@ -60,6 +70,8 @@ public class Registrar<ID, Type> {
     public static volatile Registrar<Integer, Relay>            relayRegistrar  = new Registrar<>();
     public static volatile Registrar<Integer, AnalogInput>      aiRegistrar     = new Registrar<>();
     public static volatile Registrar<Integer, AnalogOutput>     aoRegistrar     = new Registrar<>();
+    public static volatile Registrar<Integer, Compressor>       compressorRegistrar = new Registrar<>();
+    public static volatile Registrar<SolenoidID, SolenoidBase>  solenoidRegistrar   = new Registrar<>();
 
     /**
      * Get a DigitalOutput instance from the Registrar
@@ -160,6 +172,14 @@ public class Registrar<ID, Type> {
     }
 
     /**
+     * Get a Servo instance from the Registrar
+     * @param pwmPort the PWM port to use
+     */
+    public static Servo servo(int pwmPort) {
+        return pwmRegistrar.fetch(pwmPort, Servo.class, () -> { return new Servo(pwmPort); });
+    }
+
+    /**
      * Get a Talon SRX [CAN] instance from the Registrar
      * @param canID the CAN Device ID to use
      */
@@ -167,11 +187,84 @@ public class Registrar<ID, Type> {
         return canRegistrar.fetch(canID, CANTalon.class, () -> { return new CANTalon(canID); });
     }
 
+    // -- Pneumatics -- //
+
     /**
-     * Get a Jaguar [CAN] instance from the Registrar
-     * @param canID the CAN Device ID to use
+     * Get a Compressor instance from the Registrar
+     * @param pcmID the PCM CAN Device ID to use
      */
-    public static CANJaguar canJaguar(int canID) {
-        return canRegistrar.fetch(canID, CANJaguar.class, () -> { return new CANJaguar(canID); });
+    public static Compressor compressor(int pcmID) {
+        return compressorRegistrar.fetch(pcmID, Compressor.class, () -> { return new Compressor(pcmID); });
+    }
+
+    /**
+     * Get a Solenoid instance from the Registrar
+     * @param pcmID the PCM CAN Device ID to use
+     * @param solenoidChannel the channel on the PWM to use
+     */
+    public static Solenoid solenoid(int pcmID, int solenoidChannel) {
+        return solenoidRegistrar.fetch(new SolenoidID(pcmID, solenoidChannel), Solenoid.class,
+            () -> { return new Solenoid(pcmID, solenoidChannel); });
+    }
+
+    /**
+     * Get a Solenoid instance from the Registrar
+     * @param solenoidChannel the channel on the PWM to use
+     */
+    public static Solenoid solenoid(int solenoidChannel) {
+        return solenoid(0, solenoidChannel);
+    }
+
+    /**
+     * Get a DoubleSolenoid instance from the Registrar
+     * @param pcmID the PCM CAN Device ID to use
+     * @param solenoidFwdChannel the forward channel on the PWM to use
+     * @param solenoidRevChannel the reverse channel on the PWM to use
+     */
+    public static DoubleSolenoid doubleSolenoid(int pcmID, int solenoidFwdChannel, int solenoidRevChannel) {
+        return solenoidRegistrar.fetch(new SolenoidID(pcmID, solenoidFwdChannel, solenoidRevChannel),
+            DoubleSolenoid.class,
+            () -> { return new DoubleSolenoid(pcmID, solenoidFwdChannel, solenoidRevChannel); });
+    }
+
+    /**
+     * Get a DoubleSolenoid instance from the Registrar
+     * @param solenoidFwdChannel the forward channel on the PWM to use
+     * @param solenoidRevChannel the reverse channel on the PWM to use
+     */
+    public static DoubleSolenoid doubleSolenoid(int solenoidFwdChannel, int solenoidRevChannel) {
+        return doubleSolenoid(0, solenoidFwdChannel, solenoidRevChannel);
+    }
+
+    protected static class SolenoidID {
+
+        public int pcmID;
+        public int solenoidChannelA;
+        public int solenoidChannelB;
+
+        public SolenoidID(int pcmID, int solenoidChannel) {
+            this(pcmID, solenoidChannel, -1);
+        }
+
+        public SolenoidID(int pcmID, int solenoidChannelA, int solenoidChannelB) {
+            this.pcmID = pcmID;
+            this.solenoidChannelA = solenoidChannelA;
+            this.solenoidChannelB = solenoidChannelB;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if(o == null)
+                return false;
+
+            if(!(o instanceof SolenoidID))
+                return false;
+
+            SolenoidID other = (SolenoidID) o;
+            return (other.pcmID == pcmID
+                && other.solenoidChannelA == solenoidChannelB
+                && other.solenoidChannelB == solenoidChannelB);
+        }
+
     }
 }
